@@ -15,17 +15,19 @@ def process_song_file(cur, filepath):
     
     # insert artist recordo
     artist_data = artist_data = df[['artist_id', 'artist_name', 'artist_location', 'artist_latitude', 'artist_longitude']].values.tolist()
-    cur.execute(artist_table_insert, artist_data)
+    cur.execute(artist_table_insert, artist_data)    
 
-def bulk_insert(cur, df, table, primary_key, tmp_csv='./tmp.csv'):
+def bulk_insert(cur, df, create_tmp_table, tmp_table, bulk_insert):
+
+    tmp_csv='./tmp.csv'
     # create temporary csv to use bulk insert to database
-    df.to_csv(tmp_csv, header=False, index=False)
+    df.to_csv(tmp_csv, header=False, index=False, sep='\t')
     f = open(tmp_csv, 'r')
 
     # create temp table in order to not violate unique constraint
-    cur.execute('CREATE TEMP TABLE {}_tmp (LIKE {}) ON COMMIT DROP;'.format(table, table))
-    cur.copy_from(f, '{}_tmp'.format(table), sep=',')
-    cur.execute("INSERT INTO {} SELECT DISTINCT ON ({}) * FROM {}_tmp ON CONFLICT DO NOTHING;".format(table, primary_key, table))
+    cur.execute(create_tmp_table)
+    cur.copy_from(f, tmp_table, sep='\t')
+    cur.execute(bulk_insert)
 
     os.remove(tmp_csv)
 
@@ -46,36 +48,20 @@ def process_log_file(cur, filepath):
     # insert time data records
     time_data = [t, t.dt.hour, t.dt.day, t.dt.isocalendar().week, t.dt.month, t.dt.year, t.dt.weekday]
     column_labels = ('timestamp', 'hour', 'day', 'week of year', 'month', 'year', 'weekday')
-    time_df = pd.DataFrame.from_dict({'timestamp': t, 'hour': t.dt.hour, 'day': t.dt.day, 'week of year': t.dt.isocalendar().week, 
-                                      'month': t.dt.month, 'year': t.dt.year, 'weekday': t.dt.weekday})
-
-    bulk_insert(cur=cur, df=time_df, table='time', primary_key='start_time', tmp_csv='./tmp.csv')
+    time_df = pd.DataFrame.from_dict(dict(zip(column_labels, time_data)))
+    bulk_insert(cur=cur, df=time_df, create_tmp_table=create_tmp_time_table, tmp_table='tmp_time', bulk_insert=time_table_bulk_insert)
 
     # load user table
     user_df = df[['userId', 'firstName', 'lastName', 'gender', 'level']]
 
     # insert user records
-    bulk_insert(cur=cur, df=user_df, table='users', primary_key='user_id', tmp_csv='./tmp.csv')
-
-    ###
+    bulk_insert(cur=cur, df=user_df, create_tmp_table=create_tmp_users_table, tmp_table='tmp_users', bulk_insert=users_table_bulk_insert)
 
     # create temporary csv to use bulk insert to database
 
-    df = df[['ts', 'userId', 'level', 'sessionId', 'location', 'userAgent', 'song', 'artist', 'length']]
-    df.to_csv('tmp.csv', header=False, index=False, sep='\t')
-    f = open('tmp.csv', 'r')
-
-    # create temp table in order to not violate unique constraint
-    table='songplays'
-    cur.execute('CREATE TEMP TABLE tmp (ts TIMESTAMP, userId VARCHAR, level VARCHAR, sessionId VARCHAR, location VARCHAR, userAgent VARCHAR, song VARCHAR, artist VARCHAR, length NUMERIC) ON COMMIT DROP;')
-    cur.copy_from(f, 'tmp', sep='\t')
-    cur.execute("""
-        INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent) (SELECT tmp.ts, tmp.userId, tmp.level, songs.song_id, artists.artist_id, tmp.sessionId, tmp.location, tmp.userAgent FROM tmp 
-        LEFT JOIN songs ON tmp.song = songs.title AND tmp.length = songs.duration
-        LEFT JOIN artists ON tmp.artist = artists.name)
-        ON CONFLICT DO NOTHING;""")
-
-    os.remove('tmp.csv')
+    songplay_df = df[['ts', 'userId', 'level', 'sessionId', 'location', 'userAgent', 'song', 'artist', 'length']]
+    
+    bulk_insert(cur=cur, df=songplay_df, create_tmp_table=create_tmp_songplay_table, tmp_table='tmp_songplay', bulk_insert=songplay_table_bulk_insert)
 
 def process_data(cur, conn, filepath, func):
     # get all files matching extension from directory
@@ -94,6 +80,10 @@ def process_data(cur, conn, filepath, func):
         func(cur, datafile)
         conn.commit()
         print('{}/{} files processed.'.format(i, num_files))
+
+#def quality_check():
+    # check for year that is null
+    # check for empty artist
 
 
 def main():
