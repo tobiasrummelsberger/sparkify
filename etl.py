@@ -6,6 +6,14 @@ from sql_queries import *
 
 
 def process_song_file(cur, filepath):
+    """
+    Processes the individual song files in json format.
+    
+    - Read and process song data.
+    
+    - Read and process artists data.
+    """
+
     # open song file
     df = pd.read_json(filepath, typ='series')
 
@@ -18,6 +26,15 @@ def process_song_file(cur, filepath):
     cur.execute(artist_table_insert, artist_data)    
 
 def bulk_insert(cur, df, create_tmp_table, tmp_table, bulk_insert):
+    """
+    Bulk inserts dataframe to destination table.
+    
+    - Creates temporary csv
+
+    - Opens csv and copys into the database table
+
+    - Delets temporary csv
+    """
 
     tmp_csv='./tmp.csv'
     # create temporary csv to use bulk insert to database
@@ -29,10 +46,24 @@ def bulk_insert(cur, df, create_tmp_table, tmp_table, bulk_insert):
     cur.copy_from(f, tmp_table, sep='\t')
     cur.execute(bulk_insert)
 
+    # Remove temporary csv
     os.remove(tmp_csv)
 
 
 def process_log_file(cur, filepath):
+    """
+    Processes log file and bulk inserts into users, time and songplays.
+    
+    - Reads json log file
+
+    - Transforms and inserts time data in batches
+
+    - Inserts user data in batches
+
+    - Extracts and inserts songplay data in batches
+
+    """
+
     # open log file
     df = pd.read_json(filepath, lines=True)
 
@@ -64,6 +95,10 @@ def process_log_file(cur, filepath):
     bulk_insert(cur=cur, df=songplay_df, create_tmp_table=create_tmp_songplays_table, tmp_table='tmp_songplays', bulk_insert=songplays_table_bulk_insert)
 
 def process_data(cur, conn, filepath, func):
+    """
+    Processes the song and log data and inserts to sparkifydb.
+    """
+
     # get all files matching extension from directory
     all_files = []
     for root, dirs, files in os.walk(filepath):
@@ -82,6 +117,9 @@ def process_data(cur, conn, filepath, func):
         print('{}/{} files processed.'.format(i, num_files))
 
 def quality_check(cur, conn):
+    """
+    Runs some basic quality checks on data consistency.
+    """
     
     # check for year that is null
     cur.execute("SELECT COUNT(*) FROM songs WHERE year IS NULL OR year < 1900;")
