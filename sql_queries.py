@@ -72,19 +72,19 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT DO NOTHING;
 """)
 
-create_tmp_songplay_table = ("""
-CREATE TEMP TABLE tmp_songplay (ts TIMESTAMP, userId VARCHAR, level VARCHAR, sessionId VARCHAR, location VARCHAR, 
+create_tmp_songplays_table = ("""
+CREATE TEMP TABLE tmp_songplays (ts TIMESTAMP, userId VARCHAR, level VARCHAR, sessionId VARCHAR, location VARCHAR, 
 userAgent VARCHAR, song 
 VARCHAR, artist VARCHAR, length NUMERIC) ON COMMIT DROP;
 """)
 
-songplay_table_bulk_insert = ("""
+songplays_table_bulk_insert = ("""
 INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent) 
-(SELECT tmp_songplay.ts, tmp_songplay.userId, tmp_songplay.level, songs.song_id, artists.artist_id, tmp_songplay.sessionId, tmp_songplay.location, tmp_songplay.userAgent FROM tmp_songplay 
-LEFT JOIN songs ON tmp_songplay.song = songs.title AND tmp_songplay.length = songs.duration
-LEFT JOIN artists ON tmp_songplay.artist = artists.name)
+(SELECT tmp_songplays.ts, tmp_songplays.userId, tmp_songplays.level, songs.song_id, artists.artist_id, tmp_songplays.sessionId, tmp_songplays.location, tmp_songplays.userAgent FROM tmp_songplays 
+LEFT JOIN songs ON tmp_songplays.song = songs.title AND tmp_songplays.length = songs.duration
+LEFT JOIN artists ON tmp_songplays.artist = artists.name)
 ON CONFLICT DO NOTHING;
-DROP TABLE IF EXISTS tmp_songplay;
+DROP TABLE IF EXISTS tmp_songplays;
 """)
 
 user_table_insert = ("""

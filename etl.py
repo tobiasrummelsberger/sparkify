@@ -61,7 +61,7 @@ def process_log_file(cur, filepath):
 
     songplay_df = df[['ts', 'userId', 'level', 'sessionId', 'location', 'userAgent', 'song', 'artist', 'length']]
     
-    bulk_insert(cur=cur, df=songplay_df, create_tmp_table=create_tmp_songplay_table, tmp_table='tmp_songplay', bulk_insert=songplay_table_bulk_insert)
+    bulk_insert(cur=cur, df=songplay_df, create_tmp_table=create_tmp_songplays_table, tmp_table='tmp_songplays', bulk_insert=songplays_table_bulk_insert)
 
 def process_data(cur, conn, filepath, func):
     # get all files matching extension from directory
@@ -81,9 +81,19 @@ def process_data(cur, conn, filepath, func):
         conn.commit()
         print('{}/{} files processed.'.format(i, num_files))
 
-#def quality_check():
+def quality_check(cur, conn):
+    
     # check for year that is null
+    cur.execute("SELECT COUNT(*) FROM songs WHERE year IS NULL OR year < 1900;")
+    print("{} distinct songs where year is invalid. ".format(cur.fetchone()[0]))
+    
     # check for empty artist
+    cur.execute("SELECT COUNT(*) FROM artists WHERE name IS NULL;")
+    print("{} distinct artists where name is invalid. ".format(cur.fetchone()[0]))
+
+    # check for songplay that has incomplete information
+    cur.execute("SELECT COUNT(*) FROM songplays WHERE artist_id IS NULL or songplay_id IS NULL")
+    print("{} distinct songplays with incomplete information. ".format(cur.fetchone()[0]))
 
 
 def main():
@@ -92,6 +102,8 @@ def main():
 
     process_data(cur, conn, filepath='data/song_data', func=process_song_file)
     process_data(cur, conn, filepath='data/log_data', func=process_log_file)
+
+    quality_check(cur, conn)
 
     conn.close()
 
